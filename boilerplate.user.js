@@ -8,7 +8,7 @@
 // @supportURL      https://github.com/0x7C2f/Boilerplate/discussions
 // @include      *
 // @namespace    https://github.com/0x7C2f/Boilerplate
-// @grant        none
+// @grant        window.close
 // ==/UserScript==
 
 // Array of blacklisted URLs
@@ -60,6 +60,12 @@ function visibility() {
   );
 }
 
+function autorefresh() {
+  "use strict";
+  setTimeout(function () {
+    location.reload();
+  }, 2 * 1000);
+}
 // Check if the current URL is blacklisted
 function isBlacklistedUrl(url) {
   return blacklistedUrls.includes(url);
@@ -70,6 +76,10 @@ function main() {
   var currentUrl = window.location.href;
   if (!isBlacklistedUrl(currentUrl)) {
     visibility();
+  }
+
+  if (currentUrl === "worker.mturk.com/tasks") {
+    autorefresh();
   }
 }
 
