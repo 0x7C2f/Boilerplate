@@ -12,7 +12,7 @@
 // ==/UserScript==
 
 // Array of blacklisted URLs
-var blacklistedUrls = ["github.com"];
+var blacklistedUrls = ["github.com", "allcryptoz.net"];
 
 // Function to load jquery
 function addJQuery(callback) {
