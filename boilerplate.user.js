@@ -2,6 +2,7 @@
 // @name         0x7C2f Boilerplate
 // @version      1.0
 // @updateURL    https://raw.githubusercontent.com/0x7C2f/Boilerplate/main/boilerplate.user.js
+// @downloadURL  https://raw.githubusercontent.com/0x7C2f/Boilerplate/main/boilerplate.user.js
 // @description  My personal userscripts boilerplate.
 // @author       0x7C2f
 // @homepageURL     https://github.com/0x7C2f/Boilerplate
