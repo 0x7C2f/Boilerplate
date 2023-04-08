@@ -6,7 +6,6 @@
 // @description  My personal userscripts boilerplate.
 // @author       0x7C2f
 // @homepageURL     https://github.com/0x7C2f/Boilerplate
-// @supportURL      https://github.com/0x7C2f/Boilerplate/discussions
 // @include      *
 // @namespace    https://github.com/0x7C2f/Boilerplate
 // @grant        window.close
