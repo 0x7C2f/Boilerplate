@@ -5,6 +5,7 @@ indicator("0x7C2f's Boilerplate", shorttitle="Boilerplate", format=format.price,
 // #region SETTINGS
 string ShowEMA  = input.string(defval = "Yes", title="Show EMA Overlay", options=["Yes", "No"])
 string ShowBB = input.string(defval = "Yes", title="Show BB Overlay", options=["Yes", "No"])
+showpp = input(false, title = "Show Point Points",group = "R/S Lines")
 // #endregion
 
 // #Region Daily & Weekly Bars
@@ -94,7 +95,6 @@ fill(t3,b3,color=color.new(color.navy,85))
 // #endregion
 
 // region EMA
-//indicator(title="Moving Average Exponential", shorttitle="EMA", overlay=true, timeframe="", timeframe_gaps=true)
 lenEMA = input.int(9, minval=1, title="LengthEMA", group="EMA")
 srcEMA = input(close, title="SourceEMA", group="EMA")
 offsetEMA = input.int(title="OffsetEMA", defval=0, minval=-500, maxval=500, group="EMA")
@@ -117,21 +117,12 @@ plot(smoothingLine, title="Smoothing Line", color=#f37f20, offset=offsetEMA, dis
 // #endregion
 
 // region Liquidity Swings
-
-//------------------------------------------------------------------------------
-//Settings
-//-----------------------------------------------------------------------------{
 length = input(14, 'Pivot Lookback')
-
 area = input.string('Wick Extremity', 'Swing Area', options = ['Wick Extremity', 'Full Range'])
-
 intraPrecision = input(false, 'Intrabar Precision', inline = 'intrabar')
 intrabarTf = input.timeframe('1', '', inline = 'intrabar')
-
 filterOptions = input.string('Count', 'Filter Areas By', options = ['Count', 'Volume'], inline = 'filter')
 filterValue   = input.float(0, ''                                            , inline = 'filter')
-
-//Style
 showTop      = input(true, 'Swing High', inline = 'top', group = 'Style')
 topCss       = input(color.red, '', inline = 'top', group = 'Style')
 topAreaCss   = input(color.new(color.red, 50), 'Area', inline = 'top', group = 'Style')
@@ -139,14 +130,8 @@ showBtm      = input(true, 'Swing Low', inline = 'btm', group = 'Style')
 btmCss       = input(color.teal, '', inline = 'btm', group = 'Style')
 btmAreaCss   = input(color.new(color.teal, 50), 'Area', inline = 'btm', group = 'Style')
 labelSize = input.string('Tiny', 'Labels Size', options = ['Tiny', 'Small', 'Normal'], group = 'Style')
-
-//-----------------------------------------------------------------------------}
-//Functions
-//-----------------------------------------------------------------------------{
 n = bar_index
-
 get_data()=> [high, low, volume]
-
 [h, l, v] = request.security_lower_tf(syminfo.tickerid, intrabarTf, get_data())
 get_counts(condition, top, btm)=>
     var count = 0
@@ -281,7 +266,7 @@ else
         box.set_right(ph_bx, n+3)
 
 if showTop
-    //Set ph zone
+ 
     set_zone(ph, ph_x1, ph_top, ph_btm, ph_count, ph_vol, topAreaCss)
 
     //Set ph level
@@ -330,7 +315,7 @@ if showBtm
 
 //-----------------------------------------------------------------------------}
 
-// Candlestick patterns
+// #region Candlestick patterns
 //"open" is the share price at the start of market hours 
 open_today = open 
 open_1_day_ago = open[1]
@@ -372,10 +357,34 @@ doji_1_day_ago_green = (green_candle_1_day_ago) and
  close_1_day_ago - open_1_day_ago <= (close_1_day_ago + open_1_day_ago) * 0.001 
 doji_1_day_ago_red = (red_candle_1_day_ago) and 
  open_1_day_ago - close_1_day_ago <= (open_1_day_ago + close_1_day_ago) * 0.001 
+// endregion
 
-
-// CHART WARNING TEXT
+// region CHART WARNING TEXT
 var tab   = table.new(position = position.top_right, columns = 1, rows = 1, bgcolor = color(na), border_width = 1)
 if barstate.islast
     if timeframe.in_seconds(timeframe.period) > 15 * 60
         table.cell(tab, 0, 0, text = 'Please use a timeframe <= 15 minutes', text_color=#FF0000)
+// endregion
+
+
+
+//rs lines
+//study("Support Resistance - Dynamic v2", "SRv2", overlay = true)
+prd = input.int(defval = 10, title="Pivot Period", minval = 4, maxval = 30, group = "R/S Lines")
+ppsrc = input.string(defval = 'High/Low', title="Source", options = ['High/Low', 'Close/Open'], group = "R/S Lines")
+maxnumpp = input.int(defval = 20, title =" Maximum Number of Pivot", minval = 5, maxval = 100, group = "R/S Lines")
+ChannelW = input.int(defval = 10, title = "Maximum Channel Width %", minval = 1, group = "R/S Lines")
+maxnumsr = input.int(defval = 5, title =" Maximum Number of S/R", minval = 1, maxval = 10, group = "R/S Lines")
+min_strength = input.int(defval = 2, title =" Minimum Strength", minval = 1, maxval = 10, group = "R/S Lines")
+labelloc = input.int(defval = 20, title = "Label Location", group = "R/S Lines", tooltip = "Positive numbers reference future bars, negative numbers reference histical bars")
+linestyle = input.string(defval = 'Dashed', title = "Line Style", options = ['Solid', 'Dotted', 'Dashed'], group = "R/S Lines")
+linewidth = input.int(defval = 2, title = "Line Width", minval = 1, maxval = 4, group = "R/S Lines")
+resistancecolor = input.color(defval = color.new(color.red,45), title = "Resistance Color", group = "R/S Lines")
+supportcolor = input.color(defval = color.new(color.lime,45), title = "Support Color", group = "R/S Lines")
+float src1 =  ppsrc == 'High/Low' ? high : math.max(close, open)
+float src2 =  ppsrc == 'High/Low' ? low: math.min(close, open)
+float ph2 = ta.pivothigh(src1, prd, prd)
+float pl2 = ta.pivotlow(src2, prd, prd)
+
+plotshape(ph2 and showpp, text = "H",  style = shape.labeldown, color = na, textcolor = color.red, location = location.abovebar,  offset = -prd)
+plotshape(pl2 and showpp, text = "L",  style = shape.labelup, color = na, textcolor = color.green, location = location.belowbar,  offset = -prd)

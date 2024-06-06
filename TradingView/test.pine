@@ -107,19 +107,6 @@ lowerBand_3 = plot(lowerBandValue3, title="Lower Band #3", color=color.teal, off
 fill(upperBand_3, lowerBand_3, title="Bands Fill #3", color= color.new(color.teal, 80))
 
 
-//EMA
-//indicator(title="Moving Average Exponential", shorttitle="EMA", overlay=true, timeframe="", timeframe_gaps=true)
-lenEMA = input.int(9, minval=1, title="LengthEMA", group="EMA")
-srcEMA = input(close, title="SourceEMA", group="EMA")
-offsetEMA = input.int(title="OffsetEMA", defval=0, minval=-500, maxval=500, group="EMA")
-out = ta.ema(srcEMA, lenEMA)
-
-color colorEMA = color.new(color.white,35)
-
-if (ShowEMA == "No")
-    colorEMA := color(na)
-
-plot(out, title="EMA", color=colorEMA, offset=offsetEMA)
 ma(source, length, type) =>
     switch type
         "SMA" => ta.sma(source, length)
@@ -312,22 +299,3 @@ if ph2 or pl2
                   color = mid >= close ? resistancecolor : supportcolor, 
                   style = Lstyle, 
                   width = linewidth))
-
-f_crossed_over()=>
-    ret = false
-    for x = 0 to (array.size(sr_up_level) > 0 ? array.size(sr_up_level) - 1 : na)
-        float mid = math.round_to_mintick((array.get(sr_up_level, x) + array.get(sr_dn_level, x)) / 2)
-        if close[1] <= mid and close > mid
-            ret := true
-    ret
-
-f_crossed_under()=>
-    ret = false
-    for x = 0 to (array.size(sr_up_level) > 0 ? array.size(sr_up_level) - 1 : na)
-        float mid = math.round_to_mintick((array.get(sr_up_level, x) + array.get(sr_dn_level, x)) / 2)
-        if close[1] >= mid and close < mid
-            ret := true
-    ret
-
-alertcondition(f_crossed_over(), title='Resistance Broken', message='Resistance Broken')
-alertcondition(f_crossed_under(), title='Support Broken', message='Support Broken')
