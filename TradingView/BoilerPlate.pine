@@ -1,7 +1,13 @@
 //@version=5
 indicator("0x7C2f's Boilerplate", shorttitle="Boilerplate", format=format.price, precision=0, overlay=true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 500)
 
-// Daily & Weekly Bars
+
+// #region SETTINGS
+string ShowEMA  = input.string(defval = "Yes", title="Show EMA Overlay", options=["Yes", "No"])
+string ShowBB = input.string(defval = "Yes", title="Show BB Overlay", options=["Yes", "No"])
+// #endregion
+
+// #Region Daily & Weekly Bars
 override_offset = input.bool(false, title="Override defaul offset", inline = "utc_offset")
 utc_offset_input = input.int(-6, title="Offset of UTC time", minval=-12, maxval=12, inline = "utc_offset")
 week_color = input.color(color.black, "Weekly separator color")
@@ -18,22 +24,18 @@ if week_of_year_changed
     line.new(bar_index, 100, bar_index, -100, color=week_color, width=4, style=line.style_solid)
 if day_of_week_changed and not week_of_year_changed
     line.new(bar_index, 100, bar_index, -100, color=day_color, width=2, style=line.style_dotted)
+// #endregion
 
-// Ichimoku Cloud
+// #region Ichimoku Cloud
 conversionPeriods = input.int(9, minval=1, title="Conversion Line Length")
 basePeriods = input.int(26, minval=1, title="Base Line Length")
 laggingSpan2Periods = input.int(52, minval=1, title="Leading Span B Length")
 displacement = input.int(26, minval=1, title="Lagging Span")
-
 donchian(len) => math.avg(ta.lowest(len), ta.highest(len))
-
 conversionLine = donchian(conversionPeriods)
-
 baseLine = donchian(basePeriods)
-
 leadLine1 = math.avg(conversionLine, baseLine)
 leadLine2 = donchian(laggingSpan2Periods)
-
 p1 = plot(leadLine1, offset = displacement - 1, color=#A5D6A7,
 	 title="Leading Span A")
 p2 = plot(leadLine2, offset = displacement - 1, color=#EF9A9A,
@@ -41,15 +43,80 @@ p2 = plot(leadLine2, offset = displacement - 1, color=#EF9A9A,
 plot(leadLine1 > leadLine2 ? leadLine1 : leadLine2, offset = displacement - 1, title = "Kumo Cloud Upper Line", display = display.none) 
 plot(leadLine1 < leadLine2 ? leadLine1 : leadLine2, offset = displacement - 1, title = "Kumo Cloud Lower Line", display = display.none) 
 fill(p1, p2, color = leadLine1 > leadLine2 ? color.rgb(67, 160, 71, 90) : color.rgb(244, 67, 54, 90))
+// #endregion
 
-
-// RSI
+// #region RSI
 rsi_length = input.int(14, title="RSI Length")
 rsi_src = input(close, title="RSI Source")
 rsi_val = ta.rsi(rsi_src, rsi_length)
 plot(rsi_val, title="RSI", color=color.rgb(126, 87, 194) )
+// #endregion
 
-// Liquidity Swings
+// #region Bollinger Bands
+bb=true
+if (ShowBB=="No")
+    bb:=true
+else
+    bb:=false
+
+lenbb=input.int(defval=20,minval=1,title="BB Period",group="Bollinger Bands and Fib")
+p=close
+sma=ta.sma(p,lenbb)
+avg=ta.atr(lenbb)
+fibratio1=input(defval=1.618,title="Fibonacci Ratio 1",group="Bollinger Bands and Fib")
+fibratio2=input(defval=2.618,title="Fibonacci Ratio 2",group="Bollinger Bands and Fib")
+fibratio3=input(defval=4.236,title="Fibonacci Ratio 3",group="Bollinger Bands and Fib")
+r1=avg*fibratio1
+r2=avg*fibratio2
+r3=avg*fibratio3
+top3=sma+r3
+top2=sma+r2
+top1=sma+r1
+bott1=sma-r1
+bott2=sma-r2
+bott3=sma-r3
+if bb
+    top3:=int(na)
+    top2:=int(na)
+    top1:=int(na)
+    bott1:=int(na)
+    bott2:=int(na)
+    bott3:=int(na)
+    sma:=int(na)
+t3=plot(top3,title="Upper 3",color=color.new(color.teal,0))
+t2=plot(top2,title="Upper 2",color=color.new(color.teal,20))
+t1=plot(top1,title="Upper 1",color=color.new(color.teal,40))
+b1=plot(bott1,title="Lower 1",color=color.new(color.teal,40))
+b2=plot(bott2,title="Lower 2",color=color.new(color.teal,20))
+b3=plot(bott3,title="Lower 3",color=color.new(color.teal,0))
+plot(sma,title="SMA",color=color.teal,linewidth=1)
+fill(t3,b3,color=color.new(color.navy,85))
+// #endregion
+
+// region EMA
+//indicator(title="Moving Average Exponential", shorttitle="EMA", overlay=true, timeframe="", timeframe_gaps=true)
+lenEMA = input.int(9, minval=1, title="LengthEMA", group="EMA")
+srcEMA = input(close, title="SourceEMA", group="EMA")
+offsetEMA = input.int(title="OffsetEMA", defval=0, minval=-500, maxval=500, group="EMA")
+out = ta.ema(srcEMA, lenEMA)
+color colorEMA = color.new(color.white,35)
+if (ShowEMA == "No")
+    colorEMA := color(na)
+plot(out, title="EMA", color=colorEMA, offset=offsetEMA)
+ma(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+typeMA = input.string(title = "Method", defval = "SMA", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="EMA")
+smoothingLength = input.int(title = "Length", defval = 5, minval = 1, maxval = 100, group="EMA")
+smoothingLine = ma(out, smoothingLength, typeMA)
+plot(smoothingLine, title="Smoothing Line", color=#f37f20, offset=offsetEMA, display=display.none)
+// #endregion
+
+// region Liquidity Swings
 
 //------------------------------------------------------------------------------
 //Settings
@@ -162,6 +229,7 @@ set_zone(condition, x, top, btm, count, vol, css)=>
     
     if target > filterValue
         box.set_right(bx, x + count)
+// #endregion
 
 //-----------------------------------------------------------------------------}
 //Global variables

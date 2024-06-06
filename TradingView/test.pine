@@ -1,0 +1,333 @@
+//@version=5
+//Created by Robitasium
+//For those who want the EMA combined with the VWAP 
+indicator(title="VWAP With EMA and call/put and S/R line", shorttitle="VWAP & EMA", overlay=true)//, timeframe="", timeframe_gaps=true)
+//study("Support Resistance - Dynamic v2", "SRv2", overlay = true)
+string ShowBC  = input.string(defval = "No", title="Show Call/Put Overlay", options=["Yes", "No"])
+string ShowSR  = input.string(defval = "Yes", title="Show R/S Overlay", options=["Yes", "No"])
+var cumVol = 0.
+cumVol += nz(volume)
+if barstate.islast and cumVol == 0
+    runtime.error("No volume is provided by the data vendor.")
+
+computeVWAP(src, isNewPeriod) =>
+	var float sumSrcVol = na
+	var float sumVol = na
+    var float sumSrcSrcVol = na
+
+	sumSrcVol := isNewPeriod ? src * volume : src * volume + sumSrcVol[1]
+	sumVol := isNewPeriod ? volume : volume + sumVol[1]
+	// sumSrcSrcVol calculates the dividend of the equation that is later used to calculate the standard deviation
+	sumSrcSrcVol := isNewPeriod ? volume * math.pow(src, 2) : volume * math.pow(src, 2) + sumSrcSrcVol[1]
+
+	_vwap = sumSrcVol / sumVol
+	variance = sumSrcSrcVol / sumVol - math.pow(_vwap, 2)
+	variance := variance < 0 ? 0 : variance
+	stDev = math.sqrt(variance)
+
+	[_vwap, stDev]
+
+computeStdevBands(value, stdev, bandMult) =>
+    float upperBand = value + stdev * bandMult
+    float lowerBand = value - stdev * bandMult
+    [upperBand, lowerBand]
+
+hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings")
+var anchor = input.string(defval = "Session", title="Anchor Period",
+ options=["Session", "Week", "Month", "Quarter", "Year", "Decade", "Century", "Earnings", "Dividends", "Splits"], group="VWAP Settings")
+src = input(title = "Source", defval = hlc3, group="VWAP Settings")
+offset = input(0, title="Offset", group="VWAP Settings")
+
+showBand_1 = input(true, title="", group="VWAP Settings", inline="band_1")
+stdevMult_1 = input(1.0, title="Bands Multiplier #1", group="VWAP Settings", inline="band_1")
+showBand_2 = input(false, title="", group="VWAP Settings", inline="band_2")
+stdevMult_2 = input(2.0, title="Bands Multiplier #2", group="VWAP Settings", inline="band_2")
+showBand_3 = input(false, title="", group="VWAP Settings", inline="band_3")
+stdevMult_3 = input(3.0, title="Bands Multiplier #3", group="VWAP Settings", inline="band_3")
+
+timeChange(period) =>
+	ta.change(time(period))
+
+new_earnings = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_dividends = request.dividends(syminfo.tickerid, dividends.gross, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_split = request.splits(syminfo.tickerid, splits.denominator, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+
+isNewPeriod = switch anchor
+	"Earnings" => not na(new_earnings)
+	"Dividends" => not na(new_dividends)
+	"Splits" => not na(new_split)
+	"Session" => timeChange("D")
+	"Week" => timeChange("W")
+	"Month" => timeChange("M")
+	"Quarter" => timeChange("3M")
+	"Year" => timeChange("12M")
+	"Decade" => timeChange("12M") and year % 10 == 0
+	"Century" => timeChange("12M") and year % 100 == 0
+	=> false
+
+isEsdAnchor = anchor == "Earnings" or anchor == "Dividends" or anchor == "Splits"
+if na(src[1]) and not isEsdAnchor
+	isNewPeriod := true
+
+float vwapValue = na
+float stdev = na
+float upperBandValue1 = na
+float lowerBandValue1 = na
+float upperBandValue2 = na
+float lowerBandValue2 = na
+float upperBandValue3 = na
+float lowerBandValue3 = na
+
+if not (hideonDWM and timeframe.isdwm)
+    [_vwap, _stdev] = computeVWAP(src, isNewPeriod)
+    vwapValue := _vwap
+    stdev := _stdev
+	[upBV1, loBV1] = computeStdevBands(vwapValue, stdev, stdevMult_1)
+	upperBandValue1 := showBand_1 ? upBV1 : na
+	lowerBandValue1 := showBand_1 ? loBV1 : na
+	[upBV2, loBV2] = computeStdevBands(vwapValue, stdev, stdevMult_2)
+	upperBandValue2 := showBand_2 ? upBV2 : na
+	lowerBandValue2 := showBand_2 ? loBV2 : na
+	[upBV3, loBV3] = computeStdevBands(vwapValue, stdev, stdevMult_3)
+	upperBandValue3 := showBand_3 ? upBV3 : na
+	lowerBandValue3 := showBand_3 ? loBV3 : na
+
+plot(vwapValue, title="VWAP", color=color.new(color.orange,40), offset=offset)
+
+upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=color.new(color.green,40), offset=offset)
+lowerBand_1 = plot(lowerBandValue1, title="Lower Band #1", color=color.new(color.red,40), offset=offset)
+fill(upperBand_1, lowerBand_1, title="Bands Fill #1", color= color.new(color.black, 96))
+
+upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=color.olive, offset=offset)
+lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=color.olive, offset=offset)
+fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color= color.new(color.olive, 80))
+
+upperBand_3 = plot(upperBandValue3, title="Upper Band #3", color=color.teal, offset=offset)
+lowerBand_3 = plot(lowerBandValue3, title="Lower Band #3", color=color.teal, offset=offset)
+fill(upperBand_3, lowerBand_3, title="Bands Fill #3", color= color.new(color.teal, 80))
+
+
+//EMA
+//indicator(title="Moving Average Exponential", shorttitle="EMA", overlay=true, timeframe="", timeframe_gaps=true)
+lenEMA = input.int(9, minval=1, title="LengthEMA", group="EMA")
+srcEMA = input(close, title="SourceEMA", group="EMA")
+offsetEMA = input.int(title="OffsetEMA", defval=0, minval=-500, maxval=500, group="EMA")
+out = ta.ema(srcEMA, lenEMA)
+
+color colorEMA = color.new(color.white,35)
+
+if (ShowEMA == "No")
+    colorEMA := color(na)
+
+plot(out, title="EMA", color=colorEMA, offset=offsetEMA)
+ma(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+
+typeMA = input.string(title = "Method", defval = "SMA", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="EMA")
+smoothingLength = input.int(title = "Length", defval = 5, minval = 1, maxval = 100, group="EMA")
+
+smoothingLine = ma(out, smoothingLength, typeMA)
+
+plot(smoothingLine, title="Smoothing Line", color=#f37f20, offset=offsetEMA, display=display.none)
+
+//Call puts
+//I would eventually like to add a dynamic tag that would generate on trend pivots and would predict call or put until the number of bars was equal to right bars.
+//i would disapper if the # of bars was not satisfied.
+//study("BUY CALLS/PUTS", overlay=true)
+
+/// Pivots
+leftbars = input(title="LeftBars", defval=10,  group="Calls/Puts Ind")
+rightbars = input(title="Rightbars", defval=5,group="Calls/Puts Ind")
+
+ph= ta.pivothigh(close, leftbars, rightbars)
+pl = ta.pivotlow(close, leftbars, rightbars)
+/// BUY PUTS
+hh = ta.valuewhen(ph, ph, 0) > ta.valuewhen(ph[1], ph[1], 0)
+    
+
+// BUY CALLS
+ll= ta.valuewhen(pl[1], pl[1], 0) > ta.valuewhen(pl, pl, 0)
+
+a=true
+if (ShowBC=="No")
+    a:=true
+else
+    a:=false
+
+if (a)
+    hh:=int(na)
+    ll:=int(na)
+
+plotshape(hh, title="BUY PUTS", style=shape.labeldown, color=color.new(color.red,35), textcolor=color.new(color.white,35), location=location.abovebar, text="BUY PUTS", offset=-rightbars, size=size.auto)
+plotshape(ll, title="BUY CALLS", style=shape.labelup, color=color.new(color.green,35), textcolor=color.new(color.white,35), location=location.belowbar, text="BUY CALLS", offset=-rightbars, size=size.auto)
+
+b=true
+if (ShowSR=="No")
+    b:=true
+else
+    b:=false
+
+
+
+//rs lines
+//study("Support Resistance - Dynamic v2", "SRv2", overlay = true)
+prd = input.int(defval = 10, title="Pivot Period", minval = 4, maxval = 30, group = "R/S Lines")
+ppsrc = input.string(defval = 'High/Low', title="Source", options = ['High/Low', 'Close/Open'], group = "R/S Lines")
+maxnumpp = input.int(defval = 20, title =" Maximum Number of Pivot", minval = 5, maxval = 100, group = "R/S Lines")
+ChannelW = input.int(defval = 10, title = "Maximum Channel Width %", minval = 1, group = "R/S Lines")
+maxnumsr = input.int(defval = 5, title =" Maximum Number of S/R", minval = 1, maxval = 10, group = "R/S Lines")
+min_strength = input.int(defval = 2, title =" Minimum Strength", minval = 1, maxval = 10, group = "R/S Lines")
+labelloc = input.int(defval = 20, title = "Label Location", group = "R/S Lines", tooltip = "Positive numbers reference future bars, negative numbers reference histical bars")
+linestyle = input.string(defval = 'Dashed', title = "Line Style", options = ['Solid', 'Dotted', 'Dashed'], group = "R/S Lines")
+linewidth = input.int(defval = 2, title = "Line Width", minval = 1, maxval = 4, group = "R/S Lines")
+resistancecolor = input.color(defval = color.new(color.red,45), title = "Resistance Color", group = "R/S Lines")
+supportcolor = input.color(defval = color.new(color.lime,45), title = "Support Color", group = "R/S Lines")
+showpp = input(false, title = "Show Point Points",group = "R/S Lines")
+
+float src1 =  ppsrc == 'High/Low' ? high : math.max(close, open)
+float src2 =  ppsrc == 'High/Low' ? low: math.min(close, open)
+float ph2 = ta.pivothigh(src1, prd, prd)
+float pl2 = ta.pivotlow(src2, prd, prd)
+
+plotshape(ph2 and showpp, text = "H",  style = shape.labeldown, color = na, textcolor = color.red, location = location.abovebar,  offset = -prd)
+plotshape(pl2 and showpp, text = "L",  style = shape.labelup, color = na, textcolor = color.green, location = location.belowbar,  offset = -prd)
+
+Lstyle = linestyle == 'Dashed' ? line.style_dashed :
+         linestyle == 'Solid' ? line.style_solid :
+         line.style_dotted
+                 
+//calculate maximum S/R channel zone width
+prdhighest =  ta.highest(300)
+prdlowest = ta.lowest(300)
+cwidth = (prdhighest - prdlowest) * ChannelW / 100
+
+var pivotvals= array.new_float(0)
+
+if ph2 or pl2
+    array.unshift(pivotvals, ph2? ph2: pl2)
+    if array.size(pivotvals) > maxnumpp // limit the array size
+        array.pop(pivotvals)
+
+get_sr_vals(ind)=>
+    float lo = array.get(pivotvals, ind)
+    float hi = lo
+    int numpp = 0
+    for y = 0 to array.size(pivotvals) - 1
+        float cpp = array.get(pivotvals, y)
+        float wdth = cpp <= lo ? hi - cpp : cpp - lo
+        if wdth <= cwidth // fits the max channel width?
+            lo := cpp <= lo ? cpp : lo
+            hi := cpp > lo ? cpp : hi
+            numpp += 1
+    [hi, lo, numpp]  
+
+var sr_up_level = array.new_float(0)
+var sr_dn_level = array.new_float(0)
+sr_strength = array.new_float(0)
+
+find_loc(strength)=>
+    ret = array.size(sr_strength)
+    for i = (ret > 0 ? array.size(sr_strength) - 1 : na) to 0
+        if strength <= array.get(sr_strength, i)
+            break
+        ret := i
+    ret
+
+check_sr(hi, lo, strength)=>
+    ret = true
+    for i = 0 to (array.size(sr_up_level) > 0 ? array.size(sr_up_level) - 1 : na)
+        //included?
+        if array.get(sr_up_level, i) >= lo and array.get(sr_up_level, i) <= hi  or 
+           array.get(sr_dn_level, i) >= lo and array.get(sr_dn_level, i) <= hi
+            if strength >= array.get(sr_strength, i)
+                array.remove(sr_strength, i)
+                array.remove(sr_up_level, i)
+                array.remove(sr_dn_level, i)
+                ret
+            else
+                ret := false
+            break
+    ret
+
+var sr_lines = array.new_line(11, na)
+var sr_labels = array.new_label(11, na)
+
+for x = 1 to 10
+
+    rate = 100 * (label.get_y(array.get(sr_labels, x)) - close) / close
+    label.set_text(array.get(sr_labels, x), text = str.tostring(label.get_y(array.get(sr_labels, x))) + "(" + str.tostring(rate,'#.##') + "%)")
+    label.set_x(array.get(sr_labels, x), x = bar_index + labelloc)
+    label.set_color(array.get(sr_labels, x), color = label.get_y(array.get(sr_labels, x)) >= close ? color.new(color.red,40) : color.new(color.green,40))
+    label.set_textcolor(array.get(sr_labels, x), textcolor = label.get_y(array.get(sr_labels, x)) >= close ? color.new(color.white,30) : color.new(color.white,30))
+    label.set_style(array.get(sr_labels, x), style = label.get_y(array.get(sr_labels, x)) >= close ? label.style_label_down : label.style_label_up)
+    line.set_color(array.get(sr_lines, x), color = line.get_y1(array.get(sr_lines, x)) >= close ? resistancecolor : supportcolor) 
+
+if ph2 or pl2 
+    //because of new calculation, remove old S/R levels
+    array.clear(sr_up_level)
+    array.clear(sr_dn_level)
+    array.clear(sr_strength)
+    //find S/R zones
+    for x = 0 to array.size(pivotvals) - 1
+        [hi, lo, strength] = get_sr_vals(x)
+        if check_sr(hi, lo, strength)
+            loc = find_loc(strength)
+            // if strength is in first maxnumsr sr then insert it to the arrays 
+            if loc < maxnumsr and strength >= min_strength
+                array.insert(sr_strength, loc, strength)
+                array.insert(sr_up_level, loc, hi)
+                array.insert(sr_dn_level, loc, lo)
+                // keep size of the arrays = 5
+                if array.size(sr_strength) > maxnumsr
+                    array.pop(sr_strength)
+                    array.pop(sr_up_level)
+                    array.pop(sr_dn_level)
+    
+    for x = 1 to 10
+        line.delete(array.get(sr_lines, x))
+        label.delete(array.get(sr_labels, x))
+
+    if (b)
+        sr_labels:=array.new<label>(na,na)
+        sr_lines:=array.new<line>(na,na)
+        
+    for x = 0 to (array.size(sr_up_level) > 0 ? array.size(sr_up_level) - 1 : na)
+        float mid = math.round_to_mintick((array.get(sr_up_level, x) + array.get(sr_dn_level, x)) / 2)
+        rate = 100 * (mid - close) / close
+        array.set(sr_labels, x + 1, 
+           label.new( x = bar_index + labelloc, 
+                     y = mid, text = str.tostring(mid) + "(" + str.tostring(rate,'#.##') + "%)", 
+                     color = mid >= close ? color.new(color.red, 40) : color.new(color.green, 40),
+                     textcolor = mid >= close ? color.new(color.white, 30) : color.new(color.white, 30), 
+                     style = mid >= close ? label.style_label_down : label.style_label_up))
+                     
+        array.set(sr_lines, x + 1, 
+                  line.new(x1 = bar_index, y1 = mid, x2 = bar_index - 1, y2 = mid, 
+                  extend = extend.both,
+                  color = mid >= close ? resistancecolor : supportcolor, 
+                  style = Lstyle, 
+                  width = linewidth))
+
+f_crossed_over()=>
+    ret = false
+    for x = 0 to (array.size(sr_up_level) > 0 ? array.size(sr_up_level) - 1 : na)
+        float mid = math.round_to_mintick((array.get(sr_up_level, x) + array.get(sr_dn_level, x)) / 2)
+        if close[1] <= mid and close > mid
+            ret := true
+    ret
+
+f_crossed_under()=>
+    ret = false
+    for x = 0 to (array.size(sr_up_level) > 0 ? array.size(sr_up_level) - 1 : na)
+        float mid = math.round_to_mintick((array.get(sr_up_level, x) + array.get(sr_dn_level, x)) / 2)
+        if close[1] >= mid and close < mid
+            ret := true
+    ret
+
+alertcondition(f_crossed_over(), title='Resistance Broken', message='Resistance Broken')
+alertcondition(f_crossed_under(), title='Support Broken', message='Support Broken')
